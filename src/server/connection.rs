@@ -2910,6 +2910,10 @@ impl Connection {
             if !self.check_login_scope(&lr).await {
                 return false;
             }
+            if let Err(err) = crate::enterprise::verify_login(&lr, &self.hash.challenge).await {
+                self.send_login_error(&err.to_string()).await;
+                return false;
+            }
             self.awaiting_2fa = false;
             self.handle_login_request_without_validation(&lr).await;
             if self.authorized {
@@ -3147,6 +3151,10 @@ impl Connection {
                 }
             }
         } else if let Some(message::Union::SwitchSidesResponse(_s)) = msg.union {
+            if crate::enterprise::is_managed() {
+                self.send_login_error("Company managed devices do not allow switching sides").await;
+                return false;
+            }
             #[cfg(feature = "flutter")]
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             if let Some(lr) = _s.lr.clone().take() {

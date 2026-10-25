@@ -84,6 +84,7 @@ message LoginRequest {
   string my_platform = 13;
   bytes hwid = 14;
   string avatar = 17;
+  string enterprise_ticket = 18;
 }
 
 message Terminal {

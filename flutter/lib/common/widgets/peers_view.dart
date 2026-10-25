@@ -584,7 +584,12 @@ class MyGroupPeerView extends BasePeersView {
     }
     if (model.selectedAccessibleItemName.isNotEmpty) {
       if (model.isSelectedDeviceGroup.value) {
-        if (model.selectedAccessibleItemName.value != peer.device_group_name) {
+        final companyChild =
+            bind.mainGetLocalOption(key: 'enterprise-server').isNotEmpty &&
+            peer.device_group_name
+                .startsWith('${model.selectedAccessibleItemName.value} / ');
+        if (model.selectedAccessibleItemName.value != peer.device_group_name &&
+            !companyChild) {
           return false;
         }
       } else {

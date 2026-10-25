@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 
 import '../common.dart';
 import '../utils/http_service.dart' as http;
+import '../utils/enterprise_http.dart';
 import 'model.dart';
 import 'platform_model.dart';
 
@@ -145,6 +146,44 @@ class UserModel {
     userName.value = '';
     displayName.value = '';
     avatar.value = '';
+    isAdmin.value = false;
+  }
+
+  Future<void> loginCompany(String server, String username, String password,
+      {bool register = false,
+      String displayName = '',
+      String passwordConfirmation = ''}) async {
+    final origin = companyServerOrigin(server);
+    final response = register
+        ? await registerCompanyAccount(
+            origin, username, password, passwordConfirmation,
+            displayName: displayName)
+        : await companyRequest(Uri.parse('$origin/api/login'), 'POST',
+            body: jsonEncode({
+              'username': username.trim(),
+              'password': password,
+              'type': 'account',
+            }));
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode != (register ? 201 : 200)) {
+      throw RequestException(
+          response.statusCode, data['error'] ?? 'Login failed');
+    }
+    if (data['service'] != 'rustdesk-company-management' ||
+        data['type'] != HttpType.kAuthResTypeToken ||
+        data['access_token'] is! String ||
+        (data['access_token'] as String).isEmpty ||
+        data['user'] == null) {
+      throw RequestException(0, 'Invalid company server response');
+    }
+    final user = UserPayload.fromJson(data['user']);
+    await reset(resetOther: true);
+    await bind.mainSetOption(key: 'api-server', value: origin);
+    await bind.mainSetLocalOption(key: 'enterprise-server', value: origin);
+    await bind.mainSetLocalOption(
+        key: 'access_token', value: data['access_token']);
+    _parseAndUpdateUser(user);
+    await updateOtherModels();
   }
 
   _parseAndUpdateUser(UserPayload user) {

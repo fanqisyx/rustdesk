@@ -4755,7 +4755,10 @@ pub async fn handle_hash(
         hasher.finalize()[..].into()
     };
 
-    send_login(lc.clone(), String::new(), String::new(), password, peer).await;
+    if let Err(err) = send_login(lc.clone(), String::new(), String::new(), password, peer).await {
+        interface.msgbox("error", "Connection Error", &err.to_string(), "");
+        return false;
+    }
     lc.write().unwrap().hash = hash;
     true
 }
@@ -4800,12 +4803,15 @@ async fn send_login(
     os_password: String,
     password: Vec<u8>,
     peer: &mut Stream,
-) {
-    let msg_out = lc
+) -> ResultType<()> {
+    let mut msg_out = lc
         .read()
         .unwrap()
         .create_login_msg(os_username, os_password, password);
+    let challenge = lc.read().unwrap().hash.challenge.clone();
+    crate::enterprise::attach_ticket(&mut msg_out, &challenge).await?;
     allow_err!(peer.send(&msg_out).await);
+    Ok(())
 }
 
 /// Handle login request made from ui.
@@ -4850,7 +4856,14 @@ pub async fn handle_login_from_ui(
     hasher2.update(&lc.read().unwrap().hash.challenge);
     hash_password = hasher2.finalize()[..].to_vec();
 
-    send_login(lc.clone(), os_username, os_password, hash_password, peer).await;
+    if let Err(err) = send_login(lc.clone(), os_username, os_password, hash_password, peer).await {
+        log::warn!("Login request failed: {}", err);
+        let mut close = Misc::new();
+        close.set_close_reason("Company authorization failed; sign in again or contact your administrator".to_owned());
+        let mut msg = Message::new();
+        msg.set_misc(close);
+        allow_err!(peer.send(&msg).await);
+    }
 }
 
 async fn send_switch_login_request(

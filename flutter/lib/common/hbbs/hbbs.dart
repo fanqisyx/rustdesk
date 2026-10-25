@@ -82,6 +82,7 @@ class PeerPayload {
   String user_name = '';
   String? device_group_name;
   String note = '';
+  bool canShare = false;
 
   PeerPayload.fromJson(Map<String, dynamic> json)
       : id = json['id'] ?? '',
@@ -90,7 +91,8 @@ class PeerPayload {
         user = json['user'] ?? '',
         user_name = json['user_name'] ?? '',
         device_group_name = json['device_group_name'] ?? '',
-        note = json['note'] ?? '';
+        note = json['note'] ?? '',
+        canShare = json['can_share'] == true;
 
   static Peer toPeer(PeerPayload p) {
     return Peer.fromJson({

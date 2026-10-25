@@ -1,3 +1,54 @@
+# RustDesk 公司设备管理版
+
+在自建服务器上管理公司账号、内部固定资产、外部客户电脑和远控权限。基于 RustDesk 1.5.1，新增独立管理服务及 Flutter 客户端接入，远控和中继继续使用 RustDesk 与自建 hbbs/hbbr。
+
+当前公司版版本：**`v1.5.1-company.1`（预发布）**。管理服务、源码和校验文件见[本仓库 Releases](https://github.com/fanqisyx/rustdesk/releases)；原生客户端安装包只有对应 CI 构建成功后才会加入附件。当前尚未完成双机远控实机验收，详见[验证记录](management/VALIDATION.md)和[版本说明](docs/releases/v1.5.1-company.1.md)。
+
+## 功能与使用方式
+
+- **自行注册和登录**：客户端及管理网页允许注册，成功后自动登录。新账号是普通成员，初始没有设备权限；管理员可以建号、停用账号和重设密码。
+- **清晰的资产分组**：内部固定资产与外部客户设备分别建立树形分组，例如「内部资产 / 上海 / 办公室」和「外部客户 / 客户 A / 门店」。登记 RustDesk ID、资产编号、责任人、地点和系统。
+- **按人、按组授权**：支持目录查看、远程桌面、文件传输、终端、隧道、摄像头及允许分享。授权覆盖子组，可设置到期时间和撤销。
+- **分享单台远程电脑**：有分享权的成员在设备菜单中填写另一账号、选择权限与有效期；接收者仅看到指定电脑，可以退出分享。分享者可以撤销，收到的分享不能继续转发。
+- **连接时检查权限**：被控端在线核验绑定当前连接的一次性票据，继续要求设备密码、2FA 或人工确认。网页管理台提供账号、设备、授权、分享和审计管理。
+
+设备须先由管理员登记并授权；登录账号或在收藏中添加 ID 不会自动纳管该电脑，也不会取得所有权或分享权限。分享权及可转授操作必须来自管理员的直接分组授权。
+
+## 自建管理服务
+
+需要 Linux、Docker Compose v2、指向服务器的域名，以及用于 HTTPS 的 80/443 端口。下载管理服务 ZIP 后解压，或克隆本版源码，在项目目录执行：
+
+```sh
+cd management
+export RDM_DOMAIN=manage.example.com
+docker compose build
+docker compose run --rm management python app.py create-admin --username admin
+docker compose up -d
+```
+
+创建管理员时交互输入至少 12 位密码，没有默认账号密码。打开 `https://manage.example.com`，依次创建分组、登记被控电脑、分配员工权限。新注册默认开放，可通过 `RDM_ALLOW_REGISTRATION=0` 关闭；hbbs/hbbr 需要另外部署。
+
+每台被控电脑必须安装**本 fork 构建的原生客户端**，并在服务进程实际读取的配置中设置管理地址和该设备的独立凭据。控制端登录同一管理服务后，在「设备组」查看获授权的电脑，通过设备菜单「分享远程电脑」分享给其他账号。完整步骤见[部署、客户端配置与分享说明](management/README.md)。
+
+## 发布、构建与当前边界
+
+公司版标签独立记录在 [COMPANY_RELEASE](COMPANY_RELEASE)，客户端基础版本沿用 `1.5.1`，管理 API 为 `0.1.0`，数据库 schema 为 `2`。公司发布流水线运行服务端测试、构建管理镜像、生成完整源码及管理服务 ZIP、发布预发布版，再构建原生客户端。原生发布构建启用 `RUSTDESK_ENTERPRISE_REQUIRED=1`；实际编译步骤沿用下方上游构建说明及 [Flutter CI](.github/workflows/flutter-build.yml)。
+
+本地已通过 18 项服务端集成测试、4 项独立 Dart 请求模块测试、网页账号／分享流程和隔离 Rust 授权模块联调。完整 Flutter 客户端构建、Docker 部署和双机远控验证以对应环境的实际结果为准。
+
+- 撤权、分享到期和停用会阻止后续连接，不会立即断开已建立会话。
+- `view` 仅指目录查看，不代表远程画面只读；桌面内剪贴板等仍受被控端本地策略控制。
+- 本版暂未接入 RustDesk Web 远控引擎，Sciter 账号界面没有重做。
+- 升级前停止管理服务并备份整个数据库卷；v1 会升级至 v2，回退旧版需恢复升级前备份。
+
+[管理服务说明](management/README.md) · [设计与代码变更范围](docs/company-management-design.md) · [验证记录](management/VALIDATION.md) · [本版发布说明](docs/releases/v1.5.1-company.1.md)
+
+公司版遵循仓库 [AGPL-3.0 许可证](LICENCE)。以下保留上游项目介绍和构建参考，其中上游下载链接对应原版 RustDesk；公司版请使用本仓库 Releases。
+
+---
+
+## 上游项目说明与构建参考
+
 <p align="center">
   <img src="res/logo-header.svg" alt="RustDesk - Your remote desktop"><br>
   <a href="#raw-steps-to-build">Build</a> •

@@ -1,0 +1,19 @@
+name: Company management service
+on:
+  push:
+    paths: ['management/**', '.github/workflows/management.yml']
+  pull_request:
+    paths: ['management/**', '.github/workflows/management.yml']
+permissions:
+  contents: read
+jobs:
+  management:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r management/requirements-dev.txt
+      - run: python -m unittest discover -s management -p 'test_*.py' -v
+      - run: docker build management

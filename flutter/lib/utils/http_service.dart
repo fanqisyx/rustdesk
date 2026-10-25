@@ -4,6 +4,7 @@ import 'package:flutter_hbb/consts.dart';
 import 'package:http/http.dart' as http;
 import '../models/platform_model.dart';
 import 'package:flutter_hbb/common.dart';
+import 'enterprise_http.dart';
 export 'package:http/http.dart' show Response;
 
 enum HttpMethod { get, post, put, delete }
@@ -16,6 +17,21 @@ class HttpService {
     dynamic body,
   }) async {
     headers ??= {'Content-Type': 'application/json'};
+
+    final companyServer = bind.mainGetLocalOption(key: 'enterprise-server');
+    final companyToken = bind.mainGetLocalOption(key: 'access_token');
+    if (companyServer.isNotEmpty &&
+        companyToken.isNotEmpty &&
+        url.origin != companyServer &&
+        headers.entries.any((entry) =>
+            entry.key.toLowerCase() == 'authorization' &&
+            entry.value == 'Bearer $companyToken')) {
+      throw StateError(
+          'Company credentials can only be sent to the company server');
+    }
+    if (companyServer.isNotEmpty && url.origin == companyServer) {
+      return companyRequest(url, method.name, headers: headers, body: body);
+    }
 
     // Use Rust HTTP implementation for non-web platforms for consistency.
     var useFlutterHttp = (isWeb || kIsWeb);

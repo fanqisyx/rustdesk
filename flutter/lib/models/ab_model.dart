@@ -639,6 +639,7 @@ class AbModel {
   }
 
   Future<void> loadCache() async {
+    if (bind.mainGetLocalOption(key: 'enterprise-server').isNotEmpty) return;
     try {
       if (_cacheLoadOnceFlag || currentAbLoading.value) return;
       _cacheLoadOnceFlag = true;

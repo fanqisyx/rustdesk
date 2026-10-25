@@ -15,6 +15,7 @@ class GroupModel {
   final RxList<DeviceGroupPayload> deviceGroups = RxList.empty(growable: true);
   final RxList<UserPayload> users = RxList.empty(growable: true);
   final RxList<Peer> peers = RxList.empty(growable: true);
+  final Set<String> shareableDeviceIds = {};
   final RxBool isSelectedDeviceGroup = false.obs;
   final RxString selectedAccessibleItemName = ''.obs;
   final RxString searchAccessibleItemNameText = ''.obs;
@@ -57,6 +58,13 @@ class GroupModel {
     if (_statusCode == 401) {
       gFFI.userModel.reset(resetOther: true);
     } else {
+      if (bind.mainGetLocalOption(key: 'enterprise-server').isNotEmpty &&
+          groupLoadError.isNotEmpty) {
+        deviceGroups.clear();
+        users.clear();
+        peers.clear();
+        shareableDeviceIds.clear();
+      }
       _saveCache();
     }
   }
@@ -64,6 +72,7 @@ class GroupModel {
   Future<void> _pull() async {
     List<DeviceGroupPayload> tmpDeviceGroups = List.empty(growable: true);
     if (!await _getDeviceGroups(tmpDeviceGroups)) {
+      if (bind.mainGetLocalOption(key: 'enterprise-server').isNotEmpty) return;
       // old hbbs doesn't support this api
       // return;
     }
@@ -73,7 +82,8 @@ class GroupModel {
       return;
     }
     List<Peer> tmpPeers = List.empty(growable: true);
-    if (!await _getPeers(tmpPeers)) {
+    final tmpShareableIds = <String>{};
+    if (!await _getPeers(tmpPeers, tmpShareableIds)) {
       return;
     }
     deviceGroups.value = tmpDeviceGroups;
@@ -92,6 +102,9 @@ class GroupModel {
     // recover online
     final oldOnlineIDs = peers.where((e) => e.online).map((e) => e.id).toList();
     peers.value = tmpPeers;
+    shareableDeviceIds
+      ..clear()
+      ..addAll(tmpShareableIds);
     peers
         .where((e) => oldOnlineIDs.contains(e.id))
         .map((e) => e.online = true)
@@ -150,6 +163,9 @@ class GroupModel {
       return true;
     } catch (err) {
       debugPrint('get accessible device groups: $err');
+      if (bind.mainGetLocalOption(key: 'enterprise-server').isNotEmpty) {
+        groupLoadError.value = err.toString();
+      }
       // old hbbs doesn't support this api
       // groupLoadError.value =
       //     '${translate('pull_group_failed_tip')}: ${translate(err.toString())}';
@@ -221,7 +237,8 @@ class GroupModel {
     return false;
   }
 
-  Future<bool> _getPeers(List<Peer> tmpPeers) async {
+  Future<bool> _getPeers(
+      List<Peer> tmpPeers, Set<String> tmpShareableIds) async {
     try {
       final api = "${await bind.mainGetApiServer()}/api/peers";
       var uri0 = Uri.parse(api);
@@ -260,6 +277,7 @@ class GroupModel {
             if (data is List) {
               for (final p in data) {
                 final peerPayload = PeerPayload.fromJson(p);
+                if (peerPayload.canShare) tmpShareableIds.add(peerPayload.id);
                 final peer = PeerPayload.toPeer(peerPayload);
                 int index = tmpPeers.indexWhere((e) => e.id == peer.id);
                 if (index < 0) {
@@ -309,6 +327,7 @@ class GroupModel {
   }
 
   Future<void> loadCache() async {
+    if (bind.mainGetLocalOption(key: 'enterprise-server').isNotEmpty) return;
     try {
       if (_cacheLoadOnceFlag || groupLoading.value || initialized) return;
       _cacheLoadOnceFlag = true;
@@ -343,6 +362,7 @@ class GroupModel {
   }
 
   reset() async {
+    shareableDeviceIds.clear();
     initialized = false;
     groupLoadError.value = '';
     deviceGroups.clear();
@@ -370,6 +390,7 @@ class GroupModel {
     String errorMessage = groupLoadError.value;
     // The error message is "Retrieving accessible devices is disabled."
     if (errorMessage.toLowerCase().contains('disabled')) {
+      shareableDeviceIds.clear();
       users.clear();
       peers.clear();
       deviceGroups.clear();
