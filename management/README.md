@@ -2,6 +2,8 @@
 
 本目录是这个 fork 自行实现的账号、资产分组和授权服务。远程画面、输入、穿透和中继继续由 RustDesk 客户端及 hbbs/hbbr 完成；管理服务不能代替 hbbs/hbbr，也不依赖闭源的 RustDesk Server Pro。
 
+管理服务后续维护已移至 [fanqisyx/rustdesk-server](https://github.com/fanqisyx/rustdesk-server)，本目录保留客户端首版的历史兼容源码。Windows 10、现有 hbbs.exe／hbbr.exe、仅公网 IP 的升级方式，见[服务端 Windows 部署与迁移说明](https://github.com/fanqisyx/rustdesk-server/blob/master/management/windows/README.md)；使用独立 EXE 管理扩展包，无需另装 Python 或 Docker。
+
 ## 使用效果
 
 员工可以在改造后的客户端中输入管理服务地址，自行注册公司账号并登录；管理员也可以通过网页管理台创建账号。管理员建立分组、登记机器并分配权限后，员工在「设备组」中看到获授权的设备以及完整分组路径。

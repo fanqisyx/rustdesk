@@ -16,6 +16,8 @@
 
 ## 自建管理服务
 
+服务端后续由 [fanqisyx/rustdesk-server](https://github.com/fanqisyx/rustdesk-server) 维护。已有 Windows 10 + hbbs.exe／hbbr.exe 的公司服务器，请参照[服务端 Windows 升级说明](https://github.com/fanqisyx/rustdesk-server/blob/master/management/windows/README.md)，使用独立 EXE 管理扩展包，无需另装 Python 或 Docker。
+
 需要 Linux、Docker Compose v2、指向服务器的域名，以及用于 HTTPS 的 80/443 端口。下载管理服务 ZIP 后解压，或克隆本版源码，在项目目录执行：
 
 ```sh
