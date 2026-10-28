@@ -135,7 +135,7 @@ jobs:
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
       with:
-        toolchain: ${{ env.SCITER_RUST_VERSION }}
+        toolchain: ${{ env.RUST_VERSION }}
         targets: ${{ matrix.job.target }}
         components: rustfmt
     - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32

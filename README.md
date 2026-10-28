@@ -4,6 +4,8 @@
 
 当前公司版版本：**`v1.5.1-company.3`（预发布）**。新增无需证书的可选明文 HTTP 模式，配套服务端 v1.1.17-company.3 的 HTTP 安装包，默认 TCP 21114，避开 80/443。HTTP 会明文传输密码和令牌，客户端须明确勾选允许。下载见[客户端 Releases](https://github.com/fanqisyx/rustdesk/releases/tag/v1.5.1-company.3)和[配套服务端 HTTP 安装包](https://github.com/fanqisyx/rustdesk-server/releases/download/v1.1.17-company.3/rustdesk-server-company-v1.1.17-company.3-HTTP-Setup.exe)，配置和变更范围见[版本说明](docs/releases/v1.5.1-company.3.md)。当前尚未完成公司环境双机远控实机验收。
 
+Windows 直接下载：[客户端 EXE](https://github.com/fanqisyx/rustdesk/releases/download/v1.5.1-company.3/rustdesk-1.5.1-x86_64.exe)。客户端在员工电脑和被控电脑上使用；服务器安装上述 HTTP-Setup.exe。两者为不同程序。
+
 ## 功能与使用方式
 
 - **自行注册和登录**：客户端及管理网页允许注册，成功后自动登录。新账号是普通成员，初始没有设备权限；管理员可以建号、停用账号和重设密码。
