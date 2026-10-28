@@ -11,14 +11,16 @@ class CompanySharingException implements Exception {
 class CompanyDeviceSharing {
   final String server;
   final String token;
-  CompanyDeviceSharing(String server, this.token)
-      : server = companyServerOrigin(server);
+  final String httpOrigin;
+  CompanyDeviceSharing(String server, this.token, {this.httpOrigin = ''})
+      : server = companyServerOrigin(server, httpOrigin: httpOrigin);
 
   Future<dynamic> _request(String method, String path,
       {Map<String, dynamic>? body}) async {
     if (token.isEmpty)
       throw CompanySharingException('Company login is required');
     final response = await companyRequest(Uri.parse('$server$path'), method,
+        httpOrigin: httpOrigin,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token'

@@ -151,14 +151,17 @@ class UserModel {
 
   Future<void> loginCompany(String server, String username, String password,
       {bool register = false,
+      bool allowHttp = false,
       String displayName = '',
       String passwordConfirmation = ''}) async {
-    final origin = companyServerOrigin(server);
+    final httpOrigin = allowHttp ? Uri.parse(server.trim()).origin : '';
+    final origin = companyServerOrigin(server, httpOrigin: httpOrigin);
     final response = register
         ? await registerCompanyAccount(
             origin, username, password, passwordConfirmation,
-            displayName: displayName)
+            displayName: displayName, httpOrigin: httpOrigin)
         : await companyRequest(Uri.parse('$origin/api/login'), 'POST',
+            httpOrigin: httpOrigin,
             body: jsonEncode({
               'username': username.trim(),
               'password': password,
@@ -180,6 +183,9 @@ class UserModel {
     await reset(resetOther: true);
     await bind.mainSetOption(key: 'api-server', value: origin);
     await bind.mainSetLocalOption(key: 'enterprise-server', value: origin);
+    await bind.mainSetLocalOption(
+        key: 'enterprise-http-origin',
+        value: allowHttp && origin.startsWith('http://') ? origin : '');
     await bind.mainSetLocalOption(
         key: 'access_token', value: data['access_token']);
     _parseAndUpdateUser(user);

@@ -48,6 +48,21 @@ void main() {
     }
   });
 
+  test('plaintext HTTP requires approval for the exact server and port', () {
+    const server = 'http://203.0.113.10:21114';
+    expect(() => companyServerOrigin(server), throwsFormatException);
+    expect(companyServerOrigin(server, httpOrigin: server), server);
+    for (final value in [
+      'http://203.0.113.10:24443',
+      'http://203.0.113.11:21114',
+      '$server/api',
+      'http://user:password@203.0.113.10:21114',
+    ]) {
+      expect(() => companyServerOrigin(value, httpOrigin: server),
+          throwsFormatException);
+    }
+  });
+
   test('registration sends account fields to the same trusted server',
       () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -87,6 +102,37 @@ void main() {
             throwsFormatException);
       }
       expect(received, hasLength(1));
+    } finally {
+      await subscription.cancel();
+      await server.close(force: true);
+    }
+  });
+
+  test('approved HTTP supports registration and requests without redirects',
+      () async {
+    final server = await HttpServer.bind('127.0.0.2', 0);
+    final origin = 'http://127.0.0.2:${server.port}';
+    var requests = 0;
+    final subscription = server.listen((request) async {
+      requests++;
+      await request.drain<void>();
+      request.response.statusCode = request.uri.path == '/api/register' ? 201 : 307;
+      request.response.headers.set('Location', '/must-not-follow');
+      request.response.write('{}');
+      await request.response.close();
+    });
+    try {
+      await expectLater(companyRequest(Uri.parse('$origin/api/login'), 'POST'),
+          throwsFormatException);
+      expect(requests, 0);
+      final registered = await registerCompanyAccount(
+          origin, 'employee', 'employee-password', 'employee-password',
+          httpOrigin: origin);
+      expect(registered.statusCode, 201);
+      final response = await companyRequest(
+          Uri.parse('$origin/api/login'), 'POST', httpOrigin: origin);
+      expect(response.statusCode, 307);
+      expect(requests, 2);
     } finally {
       await subscription.cancel();
       await server.close(force: true);

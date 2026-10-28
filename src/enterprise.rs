@@ -33,9 +33,25 @@ pub fn transport_token(token: String) -> String {
 }
 
 fn api_url(server: &str, path: &str) -> ResultType<String> {
+    api_url_with_http_origin(
+        server,
+        path,
+        &Config::get_option(keys::OPTION_ENTERPRISE_HTTP_ORIGIN),
+        &LocalConfig::get_option(keys::OPTION_ENTERPRISE_HTTP_ORIGIN),
+    )
+}
+
+fn api_url_with_http_origin(
+    server: &str,
+    path: &str,
+    device_http_origin: &str,
+    account_http_origin: &str,
+) -> ResultType<String> {
     let parsed = url::Url::parse(server)?;
     let loopback = matches!(parsed.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"));
-    if !(parsed.scheme() == "https" || parsed.scheme() == "http" && loopback)
+    let origin = parsed.origin().ascii_serialization();
+    let allow_http = loopback || origin == device_http_origin || origin == account_http_origin;
+    if !(parsed.scheme() == "https" || parsed.scheme() == "http" && allow_http)
         || parsed.host_str().is_none()
         || !parsed.username().is_empty()
         || parsed.password().is_some()
@@ -43,7 +59,7 @@ fn api_url(server: &str, path: &str) -> ResultType<String> {
         || parsed.fragment().is_some()
         || parsed.path() != "/"
     {
-        bail!("Company server must be an HTTPS origin (HTTP is allowed only on loopback)");
+        bail!("Use HTTPS or explicitly enable plaintext HTTP for this server");
     }
     Ok(format!("{}{path}", server.trim_end_matches('/')))
 }
@@ -163,6 +179,23 @@ mod tests {
             "https://example.com?token=secret",
         ] {
             assert!(api_url(value, "/api/enterprise/verify").is_err());
+        }
+    }
+
+    #[test]
+    fn plaintext_http_approval_is_bound_to_the_server_and_port() {
+        let server = "http://203.0.113.10:21114";
+        let path = "/api/enterprise/verify";
+        assert!(api_url_with_http_origin(server, path, "", "").is_err());
+        assert!(api_url_with_http_origin(server, path, server, "").is_ok());
+        assert!(api_url_with_http_origin(server, path, "", server).is_ok());
+        for value in [
+            "http://203.0.113.10:24443",
+            "http://203.0.113.11:21114",
+            "http://user:password@203.0.113.10:21114",
+            "http://203.0.113.10:21114/api",
+        ] {
+            assert!(api_url_with_http_origin(value, path, server, server).is_err());
         }
     }
 

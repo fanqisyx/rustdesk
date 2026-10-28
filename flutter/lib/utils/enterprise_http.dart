@@ -2,27 +2,28 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-String companyServerOrigin(String value) {
+String companyServerOrigin(String value, {String httpOrigin = ''}) {
   final uri = Uri.tryParse(value.trim());
   final loopback =
       uri != null && const ['localhost', '127.0.0.1', '::1'].contains(uri.host);
   if (uri == null ||
       uri.host.isEmpty ||
-      !(uri.scheme == 'https' || uri.scheme == 'http' && loopback) ||
+      !(uri.scheme == 'https' ||
+          uri.scheme == 'http' && (loopback || uri.origin == httpOrigin)) ||
       uri.userInfo.isNotEmpty ||
       uri.hasQuery ||
       uri.hasFragment ||
       (uri.path.isNotEmpty && uri.path != '/')) {
     throw const FormatException(
-        'Company server must be an HTTPS origin (HTTP is allowed only on loopback)');
+        'Use HTTPS or explicitly enable plaintext HTTP for this server');
   }
   return uri.origin;
 }
 
 Future<http.Response> registerCompanyAccount(String server, String username,
     String password, String passwordConfirmation,
-    {String displayName = ''}) {
-  final origin = companyServerOrigin(server);
+    {String displayName = '', String httpOrigin = ''}) {
+  final origin = companyServerOrigin(server, httpOrigin: httpOrigin);
   final account = username.trim();
   if (!RegExp(r'^[a-zA-Z0-9_.@-]{1,80}$').hasMatch(account)) {
     throw const FormatException(
@@ -35,6 +36,7 @@ Future<http.Response> registerCompanyAccount(String server, String username,
     throw const FormatException('Passwords do not match');
   }
   return companyRequest(Uri.parse('$origin/api/register'), 'POST',
+      httpOrigin: httpOrigin,
       body: jsonEncode({
         'username': account,
         'display_name': displayName.trim(),
@@ -44,8 +46,8 @@ Future<http.Response> registerCompanyAccount(String server, String username,
 }
 
 Future<http.Response> companyRequest(Uri url, String method,
-    {Map<String, String>? headers, Object? body}) async {
-  companyServerOrigin(url.origin);
+    {Map<String, String>? headers, Object? body, String httpOrigin = ''}) async {
+  companyServerOrigin(url.origin, httpOrigin: httpOrigin);
   final client = http.Client();
   try {
     final request = http.Request(method.toUpperCase(), url)

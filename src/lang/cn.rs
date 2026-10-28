@@ -857,5 +857,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Share expiry must be in the future", "分享的到期时间必须晚于当前时间"),
         ("Enter the recipient username", "请输入接收者的登录账号"),
         ("File transfer", "文件传输"),
+        ("Allow plaintext HTTP for this server", "允许此服务器使用明文 HTTP"),
+        ("HTTP sends passwords and login tokens without encryption", "HTTP 会明文传输密码和登录令牌"),
+        ("Use HTTPS or explicitly enable plaintext HTTP for this server", "请使用 HTTPS，或明确勾选允许此服务器使用明文 HTTP"),
     ].iter().cloned().collect();
 }

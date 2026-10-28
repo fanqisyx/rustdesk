@@ -18,6 +18,8 @@ Future<bool?> _openCompanyLogin() async {
   final displayName = TextEditingController();
   final passwordConfirmation = TextEditingController();
   var registering = false;
+  var allowHttp = server.text.isNotEmpty &&
+      bind.mainGetLocalOption(key: 'enterprise-http-origin') == server.text;
   var busy = false;
   var cancelled = false;
   String? error;
@@ -47,6 +49,7 @@ Future<bool?> _openCompanyLogin() async {
           await gFFI.userModel.loginCompany(
               server.text, username.text, password.text,
               register: registering,
+              allowHttp: allowHttp,
               displayName: displayName.text,
               passwordConfirmation: passwordConfirmation.text);
           if (!cancelled) close(true);
@@ -85,6 +88,16 @@ Future<bool?> _openCompanyLogin() async {
                       decoration: InputDecoration(
                           labelText: translate('Company server'),
                           hintText: 'https://management.example.com')),
+                  CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      value: allowHttp,
+                      onChanged: busy
+                          ? null
+                          : (value) => setState(() => allowHttp = value ?? false),
+                      title: Text(translate('Allow plaintext HTTP for this server')),
+                      subtitle: Text(translate(
+                          'HTTP sends passwords and login tokens without encryption'))),
                   const SizedBox(height: 12),
                   TextField(
                       controller: username,

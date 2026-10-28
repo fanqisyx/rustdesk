@@ -6,7 +6,8 @@ import '../../utils/company_device_sharing.dart';
 Future<void> showCompanyDeviceSharing(String deviceId) async {
   final api = CompanyDeviceSharing(
       bind.mainGetLocalOption(key: 'enterprise-server'),
-      bind.mainGetLocalOption(key: 'access_token'));
+      bind.mainGetLocalOption(key: 'access_token'),
+      httpOrigin: bind.mainGetLocalOption(key: 'enterprise-http-origin'));
   final loading = gFFI.dialogManager.showLoading(translate('Waiting'));
   Map<String, dynamic> options;
   List<Map<String, dynamic>> shares;

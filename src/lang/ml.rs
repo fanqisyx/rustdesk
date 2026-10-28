@@ -857,5 +857,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Share expiry must be in the future", ""),
         ("Enter the recipient username", ""),
         ("File transfer", ""),
+        ("Allow plaintext HTTP for this server", ""),
+        ("HTTP sends passwords and login tokens without encryption", ""),
+        ("Use HTTPS or explicitly enable plaintext HTTP for this server", ""),
     ].iter().cloned().collect();
 }

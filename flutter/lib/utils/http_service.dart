@@ -30,7 +30,8 @@ class HttpService {
           'Company credentials can only be sent to the company server');
     }
     if (companyServer.isNotEmpty && url.origin == companyServer) {
-      return companyRequest(url, method.name, headers: headers, body: body);
+      return companyRequest(url, method.name, headers: headers, body: body,
+          httpOrigin: bind.mainGetLocalOption(key: 'enterprise-http-origin'));
     }
 
     // Use Rust HTTP implementation for non-web platforms for consistency.
