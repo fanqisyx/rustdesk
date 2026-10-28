@@ -48,3 +48,11 @@
 设备分享增加独立的 company_device_sharing.dart 请求模块和 company_device_sharing_dialog.dart 窗口，GroupModel 在已有拉取／清空／退出流程中维护可分享设备 ID，不修改通用 Peer 结构或 FFI。管理服务新增 v2 分享表、share 分组权限、分享管理接口，以及按设备合并权限的函数；目录、票据签发和被控端核验必须同时使用它，以保证收到分享的用户可见且可连接、撤权时真正拒绝连接。设备移组／停用会删除分享。网页增加分享窗口和列表，测试增加授权边界、连接时重新核验及 v1 数据保留。此次无需改变 Rust 远控协议。
 
 其他操作系统捕获、输入、编码、穿透、中继和非受管端的密码校验未改动。新业务实现集中在 management/ 与 src/enterprise.rs。详细限制（已有会话不会被即时切断、Web 远控、Sciter、权限粒度）必须按运行说明告知部署人员。
+
+## v1.5.1-company.2：可选明文 HTTP
+
+公司登录窗口增加显式勾选项，成功后保存 enterprise-http-origin，绑定协议、主机和端口。Dart 公司注册、登录、目录和分享请求及 Rust 公司票据签发／核验仅对该 origin 放行 HTTP；其他地址仍要求 HTTPS，HTTPS 证书校验和禁止重定向不变。被控服务须单独设置同值 enterprise-http-origin；此设置不会由管理员登录自动下发。
+
+本次已有路径的必需改动：flutter/lib/common/widgets/login.dart（选择 HTTP）、flutter/lib/models/user_model.dart（登录和保存选择）、flutter/lib/utils/enterprise_http.dart（精确 origin 检查）、flutter/lib/utils/http_service.dart 的公司分支（目录等请求沿用选择）、flutter/lib/utils/company_device_sharing.dart 和对应 company_device_sharing_dialog.dart（分享沿用选择）、src/enterprise.rs（原生票据请求）、libs/base/src/config/keys.rs（选项名）。语言表仅追加三项新键，版本和 README 更新交付说明。既有非公司请求、远控协议、hbbs/hbbr 及共享子模块未变。
+
+验证：六项独立 Dart 请求测试通过，含指定 origin 放行、其他地址拒绝、真实 HTTP 注册和禁止重定向；四项包含生产授权模块的隔离 Rust 测试通过。HTTP 的密码、令牌、设备凭据和票据会明文传输，须由部署者知悉选择。Windows 完整原生构建由本标签 CI 执行，公司真实网络和双机远控尚未验收。
