@@ -2,7 +2,7 @@
 
 在自建服务器上管理公司账号、内部固定资产、外部客户电脑和远控权限。基于 RustDesk 1.5.1，新增独立管理服务及 Flutter 客户端接入，远控和中继继续使用 RustDesk 与自建 hbbs/hbbr。
 
-当前公司版版本：**`v1.5.1-company.2`（预发布）**。新增无需证书的可选明文 HTTP 模式，配套服务端 v1.1.17-company.3 的 HTTP 安装包，默认 TCP 21114，避开 80/443。HTTP 会明文传输密码和令牌，客户端须明确勾选允许。下载见[客户端 Releases](https://github.com/fanqisyx/rustdesk/releases/tag/v1.5.1-company.2)和[配套服务端 HTTP 安装包](https://github.com/fanqisyx/rustdesk-server/releases/download/v1.1.17-company.3/rustdesk-server-company-v1.1.17-company.3-HTTP-Setup.exe)，配置和变更范围见[版本说明](docs/releases/v1.5.1-company.2.md)。当前尚未完成公司环境双机远控实机验收。
+当前公司版版本：**`v1.5.1-company.3`（预发布）**。新增无需证书的可选明文 HTTP 模式，配套服务端 v1.1.17-company.3 的 HTTP 安装包，默认 TCP 21114，避开 80/443。HTTP 会明文传输密码和令牌，客户端须明确勾选允许。下载见[客户端 Releases](https://github.com/fanqisyx/rustdesk/releases/tag/v1.5.1-company.3)和[配套服务端 HTTP 安装包](https://github.com/fanqisyx/rustdesk-server/releases/download/v1.1.17-company.3/rustdesk-server-company-v1.1.17-company.3-HTTP-Setup.exe)，配置和变更范围见[版本说明](docs/releases/v1.5.1-company.3.md)。当前尚未完成公司环境双机远控实机验收。
 
 ## 功能与使用方式
 
