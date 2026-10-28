@@ -1,0 +1,326 @@
+name: Company Windows x64 release
+'on':
+  workflow_dispatch: {}
+  push:
+    branches:
+    - release/company-*
+permissions:
+  contents: read
+env:
+  RUSTDESK_ENTERPRISE_REQUIRED: '1'
+  RUSTDESK_ENTERPRISE_SERVER: ''
+  RUST_VERSION: '1.75'
+  LLVM_VERSION: 15.0.6
+  FLUTTER_VERSION: 3.24.5
+  FLUTTER_WINDOWS_ARM_VERSION: 3.44.9
+  VCPKG_BINARY_SOURCES: clear;x-gha,readwrite
+  VCPKG_COMMIT_ID: 9e593bb18ea69cc5095e012465dcd675a822ed0d
+  VCPKG_CMAKE_VERSION: 4.3.0
+  VERSION: 1.5.1
+  UPLOAD_ARTIFACT: 'true'
+  PUBLISH_UPDATE_METADATA: 'false'
+  SIGN_BASE_URL: ${{ secrets.SIGN_BASE_URL }}-2
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      with:
+        submodules: recursive
+    - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      with:
+        python-version: '3.12'
+    - name: Verify company release tag
+      id: version
+      env:
+        RELEASE_REF: ${{ github.ref }}
+      run: |
+        python - <<'PY'
+        import os, pathlib, re
+        tag = pathlib.Path('COMPANY_RELEASE').read_text().strip()
+        assert re.fullmatch(r'v\d+\.\d+\.\d+-company\.\d+', tag)
+        ref = os.environ['RELEASE_REF']
+        assert ref in (f'refs/tags/{tag}', f'refs/heads/release/company-{tag}')
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+            output.write(f'tag={tag}\n')
+        PY
+    - run: pip install -r management/requirements-dev.txt
+    - run: python -m unittest discover -s management -p 'test_*.py' -v
+    - name: Build management container
+      run: docker build --tag rustdesk-management:company management
+    - name: Package committed source and management service
+      env:
+        RELEASE_TAG: ${{ steps.version.outputs.tag }}
+      run: python tools/package_company_release.py --tag "$RELEASE_TAG"
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: company-release-bundles
+        path: dist/company-release/
+        if-no-files-found: error
+  generate-bridge:
+    needs: package
+    uses: ./.github/workflows/bridge.yml
+  build-RustDeskTempTopMostWindow:
+    needs: package
+    uses: ./.github/workflows/third-party-RustDeskTempTopMostWindow.yml
+    with:
+      upload-artifact: true
+      target: windows-2022
+      configuration: Release
+      platform: x64
+      target_version: Windows10
+  build-for-windows-flutter:
+    name: ${{ matrix.job.target }}
+    needs:
+    - package
+    - generate-bridge
+    - build-RustDeskTempTopMostWindow
+    runs-on: ${{ matrix.job.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        job:
+        - target: x86_64-pc-windows-msvc
+          os: windows-2022
+          arch: x86_64
+          flutter-arch: x64
+          vcpkg-triplet: x64-windows-static
+          build-args: --vram
+    steps:
+    - name: Export GitHub Actions cache environment variables
+      uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410
+      with:
+        script: |
+          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+    - name: Checkout source code
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      with:
+        submodules: recursive
+    - name: Restore bridge files
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      with:
+        name: ${{ matrix.job.arch == 'aarch64' && 'bridge-artifact-flutter-3.44' || 'bridge-artifact' }}
+        path: ./
+    - name: Install LLVM and Clang
+      uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0
+      with:
+        version: ${{ env.LLVM_VERSION }}
+    - name: Install flutter
+      id: flutter
+      uses: subosito/flutter-action@2783a3f08e1baf891508463f8c6653c258246225
+      with:
+        channel: stable
+        flutter-version: ${{ matrix.job.arch == 'aarch64' && env.FLUTTER_WINDOWS_ARM_VERSION || env.FLUTTER_VERSION }}
+        architecture: x64
+    - name: Replace engine with rustdesk custom flutter engine
+      if: ${{ matrix.job.arch == 'x86_64' }}
+      run: |
+        flutter doctor -v
+        flutter precache --windows
+        Invoke-WebRequest -Uri https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile windows-x64-release.zip
+        Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release
+        mv -Force windows-x64-release/*  C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/
+    - name: Patch flutter
+      if: ${{ matrix.job.arch == 'x86_64' }}
+      shell: bash
+      run: |
+        cp .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff $(dirname $(dirname $(which flutter)))
+        cd $(dirname $(dirname $(which flutter)))
+        if [[ "3.24.5" == ${{env.FLUTTER_VERSION}} ]]; then
+          git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
+        fi
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+      with:
+        toolchain: ${{ env.SCITER_RUST_VERSION }}
+        targets: ${{ matrix.job.target }}
+        components: rustfmt
+    - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
+      with:
+        prefix-key: ${{ matrix.job.os }}
+    - name: Setup vcpkg with Github Actions binary cache
+      uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2
+      with:
+        vcpkgDirectory: C:\vcpkg
+        vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+        doNotCache: false
+    - name: Install vcpkg dependencies
+      env:
+        VCPKG_DEFAULT_HOST_TRIPLET: ${{ matrix.job.vcpkg-triplet }}
+      run: |
+        if ! $VCPKG_ROOT/vcpkg \
+          install \
+          --triplet ${{ matrix.job.vcpkg-triplet }} \
+          --x-install-root="$VCPKG_ROOT/installed"; then
+          find "${VCPKG_ROOT}/" -name "*.log" | while read -r _1; do
+            echo "$_1:"
+            echo "======"
+            cat "$_1"
+            echo "======"
+            echo ""
+          done
+          exit 1
+        fi
+        head -n 100 "${VCPKG_ROOT}/buildtrees/ffmpeg/build-${{ matrix.job.vcpkg-triplet }}-rel-out.log" || true
+      shell: bash
+    - name: Build rustdesk
+      run: |
+        # Windows: build RustDesk
+        # --hwcodec is shared by all Windows targets; per-target extras (e.g. --vram) come from the matrix
+        python3 .\build.py --portable --flutter --skip-portable-pack --hwcodec ${{ matrix.job.build-args }}
+        mv ./flutter/build/windows/${{ matrix.job.flutter-arch }}/runner/Release ./rustdesk
+
+        # Download usbmmidd_v2.zip and extract it to ./rustdesk
+        Invoke-WebRequest -Uri https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip -OutFile usbmmidd_v2.zip
+        Expand-Archive usbmmidd_v2.zip -DestinationPath .
+        Remove-Item -Path usbmmidd_v2\Win32 -Recurse
+        Remove-Item -Path "usbmmidd_v2\deviceinstaller64.exe", "usbmmidd_v2\deviceinstaller.exe", "usbmmidd_v2\usbmmidd.bat"
+        mv -Force .\usbmmidd_v2 ./rustdesk
+
+        # Download printer driver files and extract them to ./rustdesk
+        try {
+          Invoke-WebRequest -Uri https://github.com/rustdesk/hbb_common/releases/download/driver/rustdesk_printer_driver_v4-1.4.zip -OutFile rustdesk_printer_driver_v4-1.4.zip
+          Invoke-WebRequest -Uri https://github.com/rustdesk/hbb_common/releases/download/driver/printer_driver_adapter.zip -OutFile printer_driver_adapter.zip
+          Invoke-WebRequest -Uri https://github.com/rustdesk/hbb_common/releases/download/driver/sha256sums -OutFile sha256sums
+
+          # Check and move the files
+          $checksum_driver = (Select-String -Path .\sha256sums -Pattern '^([a-fA-F0-9]{64}) \*rustdesk_printer_driver_v4-1.4\.zip$').Matches.Groups[1].Value
+          $downloadsum_driver = Get-FileHash -Path rustdesk_printer_driver_v4-1.4.zip -Algorithm SHA256
+          $checksum_adapter = (Select-String -Path .\sha256sums -Pattern '^([a-fA-F0-9]{64}) \*printer_driver_adapter\.zip$').Matches.Groups[1].Value
+          $downloadsum_adapter = Get-FileHash -Path printer_driver_adapter.zip -Algorithm SHA256
+          if ($checksum_driver -eq $downloadsum_driver.Hash -and $checksum_adapter -eq $downloadsum_adapter.Hash) {
+              Write-Output "rustdesk_printer_driver_v4-1.4, checksums match, extract the file."
+              Expand-Archive rustdesk_printer_driver_v4-1.4.zip -DestinationPath .
+              mkdir ./rustdesk/drivers
+              mv -Force .\rustdesk_printer_driver_v4-1.4 ./rustdesk/drivers/RustDeskPrinterDriver
+              Expand-Archive printer_driver_adapter.zip -DestinationPath .
+              mv -Force .\printer_driver_adapter.dll ./rustdesk
+          } elseif ($checksum_driver -ne $downloadsum_driver.Hash) {
+              Write-Output "rustdesk_printer_driver_v4-1.4, checksums do not match, ignore the file."
+          } else {
+              Write-Output "printer_driver_adapter.dll, checksums do not match, ignore the file."
+          }
+        } catch {
+            Write-Host "Ingore the printer driver error."
+        }
+    - name: Verify company HTTP requests and sharing
+      shell: bash
+      working-directory: flutter
+      run: flutter test test/enterprise_http_test.dart test/company_device_sharing_test.dart
+    - name: Verify native company authorization
+      shell: bash
+      run: |
+        FEATURES=$(python3 ./build.py --portable --flutter --skip-portable-pack --hwcodec ${{ matrix.job.build-args }} --print-features)
+        cargo test --locked --release --lib --features "$FEATURES" enterprise::tests::
+    - name: find Runner.res
+      continue-on-error: true
+      shell: bash
+      run: |
+        runner_res=$(find . -name "Runner.res");
+        if [ "$runner_res" == "" ]; then
+          echo "Runner.res: not found";
+        else
+          echo "Runner.res: $runner_res";
+          cp $runner_res ./libs/portable/Runner.res;
+          echo "list ./libs/portable/Runner.res";
+          ls -l ./libs/portable/Runner.res;
+        fi
+    - name: Download RustDeskTempTopMostWindow artifacts
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      if: ${{ true }}
+      with:
+        name: ${{ matrix.job.arch == 'aarch64' && 'topmostwindow-artifacts-ARM64' || 'topmostwindow-artifacts-x64' }}
+        path: ./rustdesk
+    - name: Sign rustdesk files
+      if: env.UPLOAD_ARTIFACT == 'true' && env.SIGN_BASE_URL != '-2'
+      shell: bash
+      run: |
+        pip3 install requests argparse
+        BASE_URL=${{ env.SIGN_BASE_URL }} SECRET_KEY=${{ secrets.SIGN_SECRET_KEY }} python3 res/job.py sign_files ./rustdesk/
+    - name: Verify Windows Flutter version
+      if: env.UPLOAD_ARTIFACT == 'true' && env.PUBLISH_UPDATE_METADATA == 'true'
+      shell: powershell
+      run: |
+        $reportedVersion = (& ".\rustdesk\rustdesk.exe" --version | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0) {
+          throw "rustdesk --version exited with $LASTEXITCODE"
+        }
+        if ($reportedVersion -cne $env:VERSION) {
+          throw "RustDesk reports version '$reportedVersion', expected '$env:VERSION'"
+        }
+    - name: Build self-extracted executable
+      shell: bash
+      if: env.UPLOAD_ARTIFACT == 'true'
+      run: |
+        sed -i '/dpiAware/d' res/manifest.xml
+        pushd ./libs/portable
+        pip3 install -r requirements.txt
+        python3 ./generate.py -f ../../rustdesk/ -o . -e ../../rustdesk/rustdesk.exe
+        popd
+        mkdir -p ./SignOutput
+        mv ./target/release/rustdesk-portable-packer.exe ./SignOutput/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.exe
+    - name: Add MSBuild to PATH
+      uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
+      with:
+        msbuild-architecture: ${{ matrix.job.arch == 'aarch64' && 'arm64' || 'x86' }}
+    - name: Build msi
+      if: env.UPLOAD_ARTIFACT == 'true'
+      run: |
+        pushd ./res/msi
+        python preprocess.py --arp -d ../../rustdesk
+        nuget restore msi.sln
+        $msiPlatform = if ('${{ matrix.job.arch }}' -eq 'aarch64') { 'ARM64' } else { 'x64' }
+        msbuild msi.sln -p:Configuration=Release -p:Platform=$msiPlatform /p:TargetVersion=Windows10
+        $msi = Get-ChildItem ./Package/bin/*/Release/en-us/Package.msi | Select-Object -First 1
+        mv $msi.FullName ../../SignOutput/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.msi
+        sha256sum ../../SignOutput/rustdesk-*.msi
+    - name: Sign rustdesk self-extracted file
+      if: env.UPLOAD_ARTIFACT == 'true' && env.SIGN_BASE_URL != '-2'
+      shell: bash
+      run: |
+        BASE_URL=${{ env.SIGN_BASE_URL }} SECRET_KEY=${{ secrets.SIGN_SECRET_KEY }} python3 res/job.py sign_files ./SignOutput
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: windows-company-installers
+        path: SignOutput/*
+        if-no-files-found: error
+    permissions:
+      contents: read
+    env:
+      TAG_NAME: ${{ needs.package.outputs.tag }}
+  publish:
+    needs:
+    - package
+    - build-for-windows-flutter
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      with:
+        name: company-release-bundles
+        path: release
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      with:
+        name: windows-company-installers
+        path: release
+    - name: Add Windows installer checksums
+      working-directory: release
+      run: sha256sum rustdesk-*.exe rustdesk-*.msi >> SHA256SUMS
+    - name: Publish company prerelease
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        RELEASE_TAG: ${{ needs.package.outputs.tag }}
+      run: |
+        if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+          existing_commit=$(gh api "repos/$GH_REPO/commits/$RELEASE_TAG" --jq .sha)
+          test "$existing_commit" = "$GITHUB_SHA"
+          gh release edit "$RELEASE_TAG" --title "RustDesk company management $RELEASE_TAG" --notes-file "release/release-notes-$RELEASE_TAG.md" --prerelease
+          gh release upload "$RELEASE_TAG" release/* --clobber
+        else
+          gh release create "$RELEASE_TAG" release/* --target "$GITHUB_SHA" --title "RustDesk company management $RELEASE_TAG" --notes-file "release/release-notes-$RELEASE_TAG.md" --prerelease
+        fi

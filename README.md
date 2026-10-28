@@ -34,7 +34,7 @@ docker compose up -d
 
 ## 发布、构建与当前边界
 
-公司版标签独立记录在 [COMPANY_RELEASE](COMPANY_RELEASE)，客户端基础版本沿用 `1.5.1`，管理 API 为 `0.1.0`，数据库 schema 为 `2`。公司发布流水线运行服务端测试、构建管理镜像、生成完整源码及管理服务 ZIP、发布预发布版，再构建原生客户端。原生发布构建启用 `RUSTDESK_ENTERPRISE_REQUIRED=1`；实际编译步骤沿用下方上游构建说明及 [Flutter CI](.github/workflows/flutter-build.yml)。
+公司版标签独立记录在 [COMPANY_RELEASE](COMPANY_RELEASE)，客户端基础版本沿用 `1.5.1`，管理 API 为 `0.1.0`，数据库 schema 为 `2`。公司发布流水线运行服务端测试、构建管理镜像、生成完整源码及管理服务 ZIP、发布预发布版，再构建原生客户端。原生发布构建启用 `RUSTDESK_ENTERPRISE_REQUIRED=1`；实际编译步骤沿用下方上游构建说明及 [Flutter CI](.github/workflows/flutter-build.yml)。 Windows x64 发布另有[专用入口](.github/workflows/company-windows-release.yml)，沿用既有构建步骤，完成公司 HTTP 请求与原生授权测试后才发布 EXE、MSI 和 SHA256SUMS。
 
 本地已通过 18 项服务端集成测试、4 项独立 Dart 请求模块测试、网页账号／分享流程和隔离 Rust 授权模块联调。完整 Flutter 客户端构建、Docker 部署和双机远控验证以对应环境的实际结果为准。
 
