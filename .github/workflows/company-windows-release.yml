@@ -173,6 +173,16 @@ jobs:
         python3 .\build.py --portable --flutter --skip-portable-pack --hwcodec ${{ matrix.job.build-args }}
         mv ./flutter/build/windows/${{ matrix.job.flutter-arch }}/runner/Release ./rustdesk
 
+        $vsRoot = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+        $redistVersion = Get-ChildItem "$vsRoot\VC\Redist\MSVC" -Directory |
+          Where-Object { $_.Name -match '^\d+\.\d+\.\d+$' } |
+          Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
+        if (-not $redistVersion) { throw 'Visual C++ redistributable files were not found.' }
+        $crtDirectory = Join-Path $redistVersion.FullName 'x64\Microsoft.VC143.CRT'
+        foreach ($dll in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') {
+          Copy-Item -LiteralPath (Join-Path $crtDirectory $dll) -Destination ./rustdesk -ErrorAction Stop
+        }
+
         # Download usbmmidd_v2.zip and extract it to ./rustdesk
         Invoke-WebRequest -Uri https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip -OutFile usbmmidd_v2.zip
         Expand-Archive usbmmidd_v2.zip -DestinationPath .
